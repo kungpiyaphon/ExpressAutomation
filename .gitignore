@@ -1,0 +1,31 @@
+# Virtual environment
+venv/
+
+
+# Python cache and temp files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+
+# Excel temporary files
+~$*.xlsx
+
+
+# System / Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+# OS generated files
+*.swp
+*.swo
+
+
+# Logs or local configs
+logs/
+.env
