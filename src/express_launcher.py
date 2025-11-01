@@ -5,6 +5,7 @@ import subprocess
 import pyautogui
 import ctypes
 from express_menu import open_credit_purchase_add
+from express_excel_entry import process_excel_to_express
 
 # =============================================================
 # Function: Detect current keyboard layout (hex)
@@ -32,7 +33,7 @@ def switch_keyboard_to_english(wait=True, timeout=5):
                 total_wait += 0.3
             if get_current_keyboard_layout() == ENGLISH_LAYOUT:
                 print("[INFO] Keyboard layout is now English")
-                time.sleep(1)  # allow Windows to process
+                time.sleep(1)
             else:
                 print(f"[WARN] Could not switch keyboard layout to English in time, current: {hex(get_current_keyboard_layout())}")
     else:
@@ -72,21 +73,14 @@ def launch_express():
 # Function: Input credentials
 # =============================================================
 def enter_credentials():
-    # 1. Switch layout and ensure English
-    # switch_keyboard_to_english()
-    time.sleep(0.5)  # allow Windows to process
-
-    # 2. Read credentials
+    time.sleep(0.5)
     username, password = get_credentials()
     print(f"[DEBUG] Read credentials -> username: {username}, password: {password}")
     if not username or not password:
         print("[ERROR] Missing username or password.")
         return False
 
-    # 3. Focus username field
     pyautogui.press('tab', presses=2)
-
-    # 4. Clear fields
     pyautogui.hotkey('ctrl','a')
     pyautogui.press('delete')
     pyautogui.press('tab')
@@ -94,13 +88,11 @@ def enter_credentials():
     pyautogui.press('delete')
     time.sleep(0.3)
 
-    # 5. Verify layout again before typing
     if get_current_keyboard_layout() != 0x0409:
         print("[WARN] Keyboard layout is not English before typing, retry switching...")
         switch_keyboard_to_english()
         time.sleep(0.3)
 
-    # 6. Type credentials slowly
     print("[INFO] Typing username...")
     pyautogui.typewrite(username, interval=0.15)
     pyautogui.press('tab')
@@ -118,12 +110,10 @@ def handle_login_failure():
     print("[INFO] Checking for login failure popup...")
     time.sleep(2)
     try:
-        # Popup detection without OpenCV fallback
-        popup = pyautogui.locateOnScreen('ok_button.png')  # simple image match
+        popup = pyautogui.locateOnScreen('ok_button.png')
         if popup:
             print("[WARN] Login failed detected. Closing popup...")
-            pyautogui.press('enter')  # Close popup
-
+            pyautogui.press('enter')
             time.sleep(1)
             print("[INFO] Retrying login after popup...")
             enter_credentials()
@@ -138,7 +128,7 @@ def click_ok_buttons():
     for i in range(3):
         pyautogui.press('enter')
         print(f"[INFO] Clicked OK button {i+1}/3")
-        time.sleep(1)
+        time.sleep(0.5)
 
 # =============================================================
 # Function: Full workflow (MAIN ENTRY)
@@ -146,9 +136,8 @@ def click_ok_buttons():
 def run_full_workflow():
     print("[START] Express Automation Workflow...")
 
-    # 0. สลับภาษาเป็นอังกฤษล่วงหน้า
     switch_keyboard_to_english()
-    time.sleep(1)  # ให้ Windows process เสร็จ
+    time.sleep(1)
 
     if not launch_express():
         return
@@ -159,8 +148,15 @@ def run_full_workflow():
     time.sleep(1)
     click_ok_buttons()
 
-    print("[DONE] Express launched and logged in successfully!")
+    # Step 3: Open Credit Purchase -> Add
     open_credit_purchase_add()
+    time.sleep(2)
+
+    # Step 4: Process Excel entries
+    excel_file = r"C:\Users\piyaphon.w\Documents\Projects\ExpressAutomation\excel_templates\express_import_template.xlsx"
+    process_excel_to_express(excel_file)
+
+    print("[DONE] Express launched, logged in, and Excel data processed successfully!")
 
 if __name__ == "__main__":
     run_full_workflow()

@@ -24,6 +24,6 @@ def open_credit_purchase_add():
 
     # Step 3: Press Alt+A to add data
     pyautogui.hotkey('alt', 'a')
-    time.sleep(1)  # allow new screen to open
+    time.sleep(3)  # allow new screen to open
 
     print("[INFO] Ready to input data.")
