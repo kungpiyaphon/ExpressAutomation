@@ -53,7 +53,7 @@ pip install -r requirements.txt
 ### 4. Run the Program
 
 ```
-python main.py
+python src/main.py
 ```
 
 ---
