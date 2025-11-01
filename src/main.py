@@ -4,6 +4,7 @@ import pandas as pd
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from tkinter import messagebox, Tk
+from express_launcher import run_full_workflow
 
 # ========================
 # CONFIGURATION
@@ -54,7 +55,7 @@ def validate_excel(filepath):
             show_popup("❌ Template Error", f"Missing columns: {', '.join(missing)}")
             return False
         else:
-            show_popup("✅ Template OK", f"File '{filename}' passed validation.")
+            # show_popup("✅ Template OK", f"File '{filename}' passed validation.")
             return True
     except PermissionError:
         show_popup("⚠️ File Locked", f"Cannot read '{filename}' because it is open in Excel.\nPlease close the file and try again.")
@@ -70,7 +71,8 @@ class ExcelHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory and event.src_path.endswith((".xlsx", ".xls")):
             print(f"[NEW FILE DETECTED] {event.src_path}")
-            validate_excel(event.src_path)
+            if validate_excel(event.src_path):
+                run_full_workflow()
 
 # ========================
 # Main Program
@@ -84,10 +86,12 @@ if __name__ == "__main__":
     observer.schedule(event_handler, WATCH_FOLDER, recursive=False)
     observer.start()
 
-    show_popup(
-        "Express Automation Started",
-        f"👀 Watching folder:\n{WATCH_FOLDER}\n\nExpected file name:\n{EXPECTED_FILENAME}"
-    )
+    # show_popup(
+    #     "Express Automation Started",
+    #     f"👀 Watching folder:\n{WATCH_FOLDER}\n\nExpected file name:\n{EXPECTED_FILENAME}"
+    # )
+
+    print("[PENDING] 👀 Watching folder...")
 
     try:
         while True:
