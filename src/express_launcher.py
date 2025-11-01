@@ -4,6 +4,7 @@ import time
 import subprocess
 import pyautogui
 import ctypes
+from express_menu import open_credit_purchase_add
 
 # =============================================================
 # Function: Detect current keyboard layout (hex)
@@ -159,6 +160,7 @@ def run_full_workflow():
     click_ok_buttons()
 
     print("[DONE] Express launched and logged in successfully!")
+    open_credit_purchase_add()
 
 if __name__ == "__main__":
     run_full_workflow()
