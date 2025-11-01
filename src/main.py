@@ -12,13 +12,13 @@ from express_launcher import run_full_workflow
 WATCH_FOLDER = r"C:\Users\piyaphon.w\Documents\Projects\ExpressAutomation\excel_templates"  # Folder ที่ใช้เฝ้าดู
 EXPECTED_FILENAME = "express_import_template.xlsx"  # ต้องเป็นชื่อไฟล์นี้เท่านั้น
 EXPECTED_COLUMNS = [
-    "Department",
+    "Dept",
     "Date",
-    "Distributor",
-    "BillNumber",
-    "ProductCode",
-    "Quantity",
-    "PricePerUnit",
+    "Supplier",
+    "Invoice",
+    "Code",
+    "Qty",
+    "UnitCost",
 ]
 
 # ========================
