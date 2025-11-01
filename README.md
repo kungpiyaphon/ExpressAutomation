@@ -64,6 +64,14 @@ python main.py
 * ✅ Excel validation logic with custom rules
 * ✅ Template-based structure for testing and expansion
 
+--- 
+
+## ⚠️ Known Limitations / Notes
+
+* Currently, the automatic username/password entry assumes the keyboard layout is set to **English (US)**.
+* If the keyboard is in another language (e.g., Thai), the script may type incorrect characters.
+* Make sure to manually switch your keyboard to English before running the automation workflow for login.
+
 ---
 
 ## 🧱 Next Steps / Roadmap
