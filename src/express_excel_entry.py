@@ -20,60 +20,63 @@ def enter_row_into_express(row):
 
     # Date -> tab 1
     pyautogui.typewrite(str(row['Date']), interval=0.1)
-    pyautogui.press('enter', presses=1, interval=0.5)
+    pyautogui.press('enter', presses=1, interval=0.1)
 
     # Supplier -> tab 1, then handle popup if exists
     pyautogui.typewrite(str(row['Supplier']), interval=0.05)
-    pyautogui.press('tab', presses=1, interval=0.9)
+    pyautogui.press('tab', presses=1, interval=0.1)
 
     # ตรวจสอบว่ามี popup ปรากฏหรือไม่ (timeout ~3 วินาที)
-    time.sleep(0.8)
-    popup_found = False
-    for i in range(6):  # loop check every 0.5s for up to 3s
-        popup = pyautogui.locateOnScreen('ok_button.png', confidence=0.8) \
-                 or pyautogui.locateOnScreen('select_window.png', confidence=0.8)
-        if popup:
-            popup_found = True
-            print("[INFO] Supplier popup detected, selecting supplier...")
-            break
-        time.sleep(0.5)
+    # time.sleep(0.8)
+    # popup_found = False
+    # for i in range(6):  # loop check every 0.5s for up to 3s
+    #     popup = pyautogui.locateOnScreen('ok_button.png') \
+    #              or pyautogui.locateOnScreen('select_window.png')
+    #     if popup:
+    #         popup_found = True
+    #         print("[INFO] Supplier popup detected, selecting supplier...")
+    #         break
+    #     time.sleep(0.5)
 
-    if popup_found:
-        # มี popup → เลือก supplier ที่ 3 แล้วกด enter
-        pyautogui.press('down', presses=3, interval=0.3)
-        pyautogui.press('enter')
-    else:
-        # ไม่มี popup → เดินต่อเลย
-        print("[INFO] No popup detected, skipping selection...")
+    # if popup_found:
+    #     # มี popup → เลือก supplier ที่ 3 แล้วกด enter
+    #     pyautogui.press('down', presses=3, interval=0.3)
+    #     pyautogui.press('enter')
+    # else:
+    #     # ไม่มี popup → เดินต่อเลย
+    #     print("[INFO] No popup detected, skipping selection...")
 
     # หลังจาก popup หรือไม่ popup ให้ tab ต่อไปอีก 3 ครั้งเพื่อไปช่องถัดไป
-    pyautogui.press('tab', presses=3, interval=0.9)
+    pyautogui.press('tab', presses=3, interval=0.1)
 
     # Invoice -> enter 11
     pyautogui.typewrite(str(row['Invoice']), interval=0.05)
-    pyautogui.press('enter', presses=11, interval=0.9)
+    pyautogui.press('enter', presses=11, interval=0.1)
 
     # Code -> tab 1 + popup
     time.sleep(1)
-    pyautogui.press('tab', presses=1, interval=0.9)
+    pyautogui.press('tab', presses=1, interval=0.1)
 
     code_value = str(row['Code']).strip()
     pyautogui.typewrite(code_value, interval=0.1)
     time.sleep(0.5)
-    pyautogui.press('enter', presses=1, interval=0.9)
+    pyautogui.press('enter', presses=2, interval=0.1)
+    pyautogui.press('tab', presses=2, interval=0.1)
 
     # Qty -> OK popup
-    # pyautogui.typewrite(str(row['Qty']), interval=0.05)
-    # pyautogui.press('enter')  # handle popup automatically
+    pyautogui.typewrite(str(row['Qty']), interval=0.05)
+    pyautogui.press('enter', presses=3, interval=0.1)  # handle popup automatically
 
     # UnitCost -> tab 3
-    # pyautogui.typewrite(str(row['UnitCost']), interval=0.05)
-    # pyautogui.press('tab', presses=3, interval=0.1)
+    pyautogui.typewrite(str(row['UnitCost']), interval=0.05)
+    pyautogui.press('tab', presses=3, interval=0.1)
 
     # # Save F9 -> Acquisition Basis (Enter)
-    # pyautogui.press('f9')
-    # time.sleep(0.5)
-    # pyautogui.press('enter')
+    pyautogui.press('f9', presses=1, interval=0.1)
+    time.sleep(1)
+    print(f"[INFO] OK")
+    pyautogui.press('enter')
+    pyautogui.hotkey('alt', 'a')  # to add new row
 
 # =============================================================
 # Function: Full workflow for Excel to Express
