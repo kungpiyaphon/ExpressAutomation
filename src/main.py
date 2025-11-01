@@ -9,7 +9,10 @@ from express_launcher import run_full_workflow
 # ========================
 # CONFIGURATION
 # ========================
-WATCH_FOLDER = r"C:\Users\piyaphon.w\Documents\Projects\ExpressAutomation\excel_templates"  # Folder ที่ใช้เฝ้าดู
+# ใช้ path แบบ relative จากตำแหน่งไฟล์ main.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WATCH_FOLDER = os.path.join(BASE_DIR, "excel_templates")
+os.makedirs(WATCH_FOLDER, exist_ok=True)
 EXPECTED_FILENAME = "express_import_template.xlsx"  # ต้องเป็นชื่อไฟล์นี้เท่านั้น
 EXPECTED_COLUMNS = [
     "Dept",
