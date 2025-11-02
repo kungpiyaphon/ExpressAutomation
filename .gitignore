@@ -9,6 +9,10 @@ __pycache__/
 *.pyd
 *.log
 
+# build output
+/dist/
+/build/
+/*.exe
 
 # Excel temporary files
 ~$*.xlsx
