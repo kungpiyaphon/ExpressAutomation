@@ -57,6 +57,20 @@ python src/main.py
 ```
 
 ---
+## 💻 VS Code Setup (Recommended)
+
+If you are using **Visual Studio Code**, a workspace setting has been included to automatically detect the correct Python interpreter from the virtual environment.
+
+### 1. Open Command Palette
+Press `Ctrl + Shift + P` → type `Python: Select Interpreter`
+
+Then select:
+Python 3.12.10 ('venv': venv)
+[venv\Scripts\python.exe]
+
+### 2. (Optional) Reload the window
+If VS Code still shows import warnings (e.g. `pyautogui could not be resolved`), run:
+Ctrl + Shift + P → Developer: Reload Window
 
 ## 🧩 Current Features
 

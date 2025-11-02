@@ -4,6 +4,7 @@ import time
 import subprocess
 import pyautogui
 import ctypes
+import sys
 from express_menu import open_credit_purchase_add
 from express_excel_entry import process_excel_to_express
 
@@ -148,15 +149,29 @@ def run_full_workflow():
     time.sleep(1)
     click_ok_buttons()
 
-    # Step 3: Open Credit Purchase -> Add
-    open_credit_purchase_add()
-    time.sleep(2)
+    # ========================
+    # Load Excel path dynamically (relative path)
+    # ========================
+    if getattr(sys, 'frozen', False):
+        # กรณีรันจาก .exe (PyInstaller)
+        BASE_DIR = sys._MEIPASS
+    else:
+        # กรณีรันจาก source code (Python ปกติ)
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # excel_templates จะอยู่เหนือ src 1 ระดับ
+    excel_file = os.path.join(os.path.dirname(BASE_DIR), "excel_templates", "express_import_template.xlsx")
+
+    # ตรวจสอบว่าไฟล์มีอยู่จริง
+    if not os.path.exists(excel_file):
+        print(f"[ERROR] Excel file not found: {excel_file}")
+        return
 
     # Step 4: Process Excel entries
-    excel_file = r"C:\Users\piyaphon.w\Documents\Projects\ExpressAutomation\excel_templates\express_import_template.xlsx"
     process_excel_to_express(excel_file)
 
     print("[DONE] Express launched, logged in, and Excel data processed successfully!")
+
 
 if __name__ == "__main__":
     run_full_workflow()

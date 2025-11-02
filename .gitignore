@@ -1,6 +1,6 @@
 # Virtual environment
 venv/
-
+.vscode/
 
 # Python cache and temp files
 __pycache__/
