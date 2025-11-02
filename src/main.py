@@ -1,104 +1,120 @@
-import os
 import time
 import pandas as pd
+from pathlib import Path
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from tkinter import messagebox, Tk
-from express_launcher import run_full_workflow
 
 # ========================
 # CONFIGURATION
 # ========================
-# ใช้ path แบบ relative จากตำแหน่งไฟล์ main.py
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WATCH_FOLDER = os.path.join(BASE_DIR, "excel_templates")
-os.makedirs(WATCH_FOLDER, exist_ok=True)
-EXPECTED_FILENAME = "express_import_template.xlsx"  # ต้องเป็นชื่อไฟล์นี้เท่านั้น
-EXPECTED_COLUMNS = [
-    "Dept",
-    "Date",
-    "Supplier",
-    "Invoice",
-    "Code",
-    "Qty",
-    "UnitCost",
-]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]   # .../ExpressAutomation
+WATCH_FOLDER = PROJECT_ROOT / "excel_templates"
+WATCH_FOLDER.mkdir(parents=True, exist_ok=True)
+
+EXPECTED_FILENAME = "express_import_template.xlsx"
+EXPECTED_COLUMNS = ["Dept", "Date", "Supplier", "Invoice", "Code", "Qty", "UnitCost"]
 
 # ========================
-# Helper: แสดง Popup
+# Helper: Popup
 # ========================
 def show_popup(title, message):
-    root = Tk()
-    root.withdraw()
-    messagebox.showinfo(title, message)
-    root.destroy()
-
-# ========================
-# ตรวจสอบชื่อไฟล์ + เทมเพลต
-# ========================
-def validate_excel(filepath):
-    filename = os.path.basename(filepath)
-
-    # ตรวจชื่อไฟล์ก่อน
-    if filename.lower() != EXPECTED_FILENAME.lower():
-        show_popup("❌ Invalid Filename", f"File name '{filename}' is not allowed.\nExpected: {EXPECTED_FILENAME}")
-        return False
-
-    # ตรวจหัวคอลัมน์
     try:
-        # รอให้ไฟล์พร้อม (บางครั้งไฟล์เพิ่งถูกคัดลอกเข้ามาและยังไม่พร้อมอ่าน)
-        time.sleep(1)
+        root = Tk()
+        root.withdraw()
+        messagebox.showinfo(title, message)
+        root.destroy()
+    except Exception:
+        # เผื่อรันในสภาพแวดล้อมที่ไม่มี GUI (เช่น RDP บางแบบ / บริการ)
+        print(f"[POPUP:{title}] {message}")
 
-        # เปิดไฟล์ในโหมด read-only
-        with open(filepath, 'rb') as f:
-            df = pd.read_excel(f)
+# ========================
+# Utils
+# ========================
+def is_target_excel(path: Path) -> bool:
+    return (path.suffix.lower() in [".xlsx", ".xls"]) and (path.name.lower() == EXPECTED_FILENAME.lower())
 
-        missing = [col for col in EXPECTED_COLUMNS if col not in df.columns]
+def wait_file_ready(path: Path, timeout=10, interval=0.2) -> bool:
+    """รอจนไฟล์ไม่ถูกล็อก/เขียนอยู่"""
+    start = time.time()
+    last_size = -1
+    while time.time() - start < timeout:
+        if not path.exists():
+            return False
+        try:
+            size = path.stat().st_size
+            # ถ้าขนาดไฟล์นิ่งติดต่อกัน 1 รอบ และเปิดอ่านได้ แปลว่าพร้อม
+            if size == last_size:
+                with path.open("rb"):
+                    return True
+            last_size = size
+        except Exception:
+            pass
+        time.sleep(interval)
+    return False
+
+def validate_excel(path: Path) -> bool:
+    if path.name.lower() != EXPECTED_FILENAME.lower():
+        show_popup("❌ Invalid Filename",
+                   f"File name '{path.name}' is not allowed.\nExpected: {EXPECTED_FILENAME}")
+        return False
+    try:
+        if not wait_file_ready(path):
+            show_popup("⚠️ File Busy", f"File '{path.name}' is not ready to read yet.")
+            return False
+        df = pd.read_excel(path)  # ต้องมี openpyxl ติดตั้งไว้สำหรับ .xlsx
+        missing = [c for c in EXPECTED_COLUMNS if c not in df.columns]
         if missing:
             show_popup("❌ Template Error", f"Missing columns: {', '.join(missing)}")
             return False
-        else:
-            # show_popup("✅ Template OK", f"File '{filename}' passed validation.")
-            return True
+        return True
     except PermissionError:
-        show_popup("⚠️ File Locked", f"Cannot read '{filename}' because it is open in Excel.\nPlease close the file and try again.")
+        show_popup("⚠️ File Locked", f"Cannot read '{path.name}'. Please close the file and try again.")
         return False
     except Exception as e:
-        show_popup("❌ Read Error", f"Cannot read '{filename}'\nError: {e}")
+        show_popup("❌ Read Error", f"Cannot read '{path.name}'\nError: {e}")
         return False
 
 # ========================
-# Handler ตรวจจับไฟล์ใหม่
+# Handler
 # ========================
 class ExcelHandler(FileSystemEventHandler):
-    def on_created(self, event):
-        if not event.is_directory and event.src_path.endswith((".xlsx", ".xls")):
-            print(f"[NEW FILE DETECTED] {event.src_path}")
-            if validate_excel(event.src_path):
+    def _maybe_process(self, p: Path):
+        if not is_target_excel(p):
+            return
+        print(f"[EVENT] {p}")
+        if validate_excel(p):
+            try:
+                # Lazy import เพื่อลดปัญหา import-time crash จาก pyautogui/cv2
+                from express_launcher import run_full_workflow
                 run_full_workflow()
+            except Exception as e:
+                show_popup("❌ Workflow Error", f"run_full_workflow failed:\n{e}")
+
+    def on_created(self, event):
+        if not event.is_directory:
+            self._maybe_process(Path(event.src_path))
+
+    def on_modified(self, event):
+        if not event.is_directory:
+            self._maybe_process(Path(event.src_path))
+
+    def on_moved(self, event):
+        # move เข้ามาในโฟลเดอร์
+        if not event.is_directory:
+            self._maybe_process(Path(event.dest_path))
 
 # ========================
-# Main Program
+# Main
 # ========================
 if __name__ == "__main__":
-    if not os.path.exists(WATCH_FOLDER):
-        os.makedirs(WATCH_FOLDER)
-
+    print(f"[WATCHING] {WATCH_FOLDER}")
     observer = Observer()
-    event_handler = ExcelHandler()
-    observer.schedule(event_handler, WATCH_FOLDER, recursive=False)
+    observer.schedule(ExcelHandler(), str(WATCH_FOLDER), recursive=False)
     observer.start()
-
-    # show_popup(
-    #     "Express Automation Started",
-    #     f"👀 Watching folder:\n{WATCH_FOLDER}\n\nExpected file name:\n{EXPECTED_FILENAME}"
-    # )
-
-    print("[PENDING] 👀 Watching folder...")
-
     try:
         while True:
-            time.sleep(1)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
