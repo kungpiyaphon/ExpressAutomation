@@ -79,42 +79,17 @@ def validate_excel(path: Path) -> bool:
 # Handler
 # ========================
 class ExcelHandler(FileSystemEventHandler):
-    def __init__(self):
-        super().__init__()
-        self._processing = False
-        self._last_processed_mtime = {}
-
     def _maybe_process(self, p: Path):
         if not is_target_excel(p):
             return
         print(f"[EVENT] {p}")
-
-        try:
-            mtime = p.stat().st_mtime
-        except FileNotFoundError:
-            return
-
-        resolved = p.resolve()
-        last_mtime = self._last_processed_mtime.get(resolved)
-        if last_mtime and mtime <= last_mtime:
-            print("[INFO] Duplicate file event ignored (no new changes detected).")
-            return
-
-        if self._processing:
-            print("[INFO] Workflow already running; event skipped.")
-            return
-
         if validate_excel(p):
             try:
                 # Lazy import เพื่อลดปัญหา import-time crash จาก pyautogui/cv2
                 from express_launcher import run_full_workflow
-                self._processing = True
                 run_full_workflow()
-                self._last_processed_mtime[resolved] = mtime
             except Exception as e:
                 show_popup("❌ Workflow Error", f"run_full_workflow failed:\n{e}")
-            finally:
-                self._processing = False
 
     def on_created(self, event):
         if not event.is_directory:
