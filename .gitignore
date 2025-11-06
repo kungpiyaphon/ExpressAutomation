@@ -1,6 +1,6 @@
 # Virtual environment
 venv/
-
+.vscode/
 
 # Python cache and temp files
 __pycache__/
@@ -9,6 +9,10 @@ __pycache__/
 *.pyd
 *.log
 
+# build output
+/dist/
+/build/
+/*.exe
 
 # Excel temporary files
 ~$*.xlsx
