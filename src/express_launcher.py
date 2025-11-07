@@ -264,7 +264,7 @@ def run_full_workflow(
     # เข้าเมนูซื้อเชื่อ -> เพิ่มรายการ
     # (หากองค์กรต้องเปลี่ยนลำดับ สามารถย้ายจุดนี้ได้)
     print(f"[INFO] Navigating to Credit Purchase Add menu...")
-    # open_credit_purchase_add()
+    open_credit_purchase_add()
     time.sleep(1.2)
 
     # ไฟล์ Excel (dynamic)
@@ -278,10 +278,10 @@ def run_full_workflow(
     try:
         # พยายามส่ง company_key เข้าไปก่อน ถ้า signature ยังไม่รองรับจะ fallback
         print(f"[INFO] Processing Excel to Express with company_key={search_key}...")
-        # process_excel_to_express(str(excel_file), company_key=search_key)
+        process_excel_to_express(str(excel_file), company_key=search_key)
     except TypeError:
         print(f"[INFO] Processing Excel to Express without company_key...")
-        # process_excel_to_express(str(excel_file))
+        process_excel_to_express(str(excel_file))
     print("[DONE] Express launched, logged in, company selected, and Excel data processed!")
 
 if __name__ == "__main__":

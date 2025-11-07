@@ -162,6 +162,8 @@ class ExcelHandler(FileSystemEventHandler):
             print(f"[DONE] Sending function with parameters: file_path={p}, search_key={search_key}")
             try:
                 from express_launcher import run_full_workflow
+                # force test key
+                search_key = "DATAT"
                 run_full_workflow(file_path=str(p), search_key=search_key)
             except TypeError:
                 from express_launcher import run_full_workflow

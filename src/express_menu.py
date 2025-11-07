@@ -1,29 +1,50 @@
 import time
 import pyautogui
 
-# =============================================================
-# Function: Navigate Express Menu to Credit Purchase Add Data
-# =============================================================
+# ปรับได้ตามเครื่อง/เครือข่าย
+DEFAULT_KEY_INTERVAL = 0.05     # เวลาคั่นแต่ละคีย์
+STEP_DELAY = 0.25               # เวลาคั่นแต่ละสเต็ป
+RETRY = 3                       # จำนวนครั้งที่ลองซ้ำ
+
+pyautogui.PAUSE = DEFAULT_KEY_INTERVAL
+pyautogui.FAILSAFE = True  # มุมซ้ายบน = emergency stop
+
+def _press_with_pause(*keys, delay=STEP_DELAY):
+    """กดคีย์แล้วพักสั้น ๆ เพื่อให้ UI ทัน"""
+    if len(keys) == 1:
+        pyautogui.press(keys[0])
+    else:
+        pyautogui.hotkey(*keys)
+    time.sleep(delay)
+
 def open_credit_purchase_add():
     """
-    Automates opening the Credit Purchase Add screen in Express.
-    Steps:
-    1. Press Alt+1 to open 'Purchase' menu.
-    2. Press 4 to select 'Credit Purchase' from dropdown.
-    3. Press Alt+A to add new data.
+    เปิดหน้าจอ 'ซื้อเชื่อ -> เพิ่มรายการ' ด้วยลำดับคีย์ลัด:
+      1) Alt+1  เปิดเมนูซื้อ
+      2) 4      เลือก 'ซื้อเชื่อ'
+      3) Alt+A  เพิ่มรายการใหม่
+    มีกลไก retry เบา ๆ เผื่อ UI ช้า
     """
     print("[INFO] Navigating to Credit Purchase Add screen...")
 
-    # Step 1: Open Purchase menu
-    pyautogui.hotkey('alt', '1')
-    time.sleep(0.5)  # allow menu to open
+    for attempt in range(1, RETRY + 1):
+        try:
+            # Step 1: Open Purchase menu
+            _press_with_pause('alt', '1')
 
-    # Step 2: Select Credit Purchase
-    pyautogui.press('4')
-    time.sleep(0.5)  # allow dropdown to process
+            # Step 2: Select Credit Purchase
+            _press_with_pause('4')
 
-    # Step 3: Press Alt+A to add data
-    pyautogui.hotkey('alt', 'a')
-    time.sleep(3)  # allow new screen to open
+            # Step 3: Add new record
+            _press_with_pause('alt', 'a', delay=STEP_DELAY + 0.5)
 
-    print("[INFO] Ready to input data.")
+            # เผื่อหน้าจอโหลด
+            time.sleep(1.5)
+            print("[INFO] Ready to input data.")
+            return
+        except Exception as e:
+            print(f"[WARN] Menu navigation attempt {attempt}/{RETRY} failed: {e}")
+            time.sleep(0.5)
+
+    # ถ้าไม่สำเร็จใน RETRY ครั้ง
+    print("[ERROR] Failed to navigate to Credit Purchase Add screen after retries.")
