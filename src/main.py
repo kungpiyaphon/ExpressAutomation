@@ -141,7 +141,7 @@ class ExcelHandler(FileSystemEventHandler):
             from express_launcher import run_full_workflow
             try:
                 print(f"[DONE] Sending function with parameters: file_path={str(p)}, search_key={search_key}")
-                # run_full_workflow(file_path=str(p), search_key=search_key)
+                run_full_workflow(file_path=str(p), search_key=search_key)
             except TypeError:
                 # รองรับเวอร์ชันเก่า
                 print(f"[DONE] Sending function without parameters")

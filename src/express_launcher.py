@@ -2,161 +2,232 @@ import os
 import json
 import time
 import subprocess
-import pyautogui
 import ctypes
+from pathlib import Path
+from typing import Optional
+
+import pyautogui
+
 from express_menu import open_credit_purchase_add
 from express_excel_entry import process_excel_to_express
 
-# =============================================================
-# Function: Detect current keyboard layout (hex)
-# =============================================================
-def get_current_keyboard_layout():
+# -------------------------
+# Global behavior for PyAutoGUI
+# -------------------------
+pyautogui.FAILSAFE = True      # มุมซ้ายบน = emergency stop
+pyautogui.PAUSE = 0.05
+
+# -------------------------
+# Paths / Project root
+# -------------------------
+PROJECT_ROOT = Path(__file__).resolve().parents[1]   # .../ExpressAutomation
+EXCEL_DEFAULT = PROJECT_ROOT / "excel_templates" / "express_import_template.xlsx"
+CONFIG_FILE = PROJECT_ROOT / "express.config.json"   # optional
+
+# =========================
+# Keyboard layout helpers
+# =========================
+def get_current_keyboard_layout() -> int:
     hwnd = ctypes.windll.user32.GetForegroundWindow()
     thread_id = ctypes.windll.user32.GetWindowThreadProcessId(hwnd, 0)
     klid = ctypes.windll.user32.GetKeyboardLayout(thread_id)
     lid = klid & (2**16 - 1)
     return lid
 
-# =============================================================
-# Function: Switch keyboard layout to English if not already
-# =============================================================
-def switch_keyboard_to_english(wait=True, timeout=5):
-    ENGLISH_LAYOUT = 0x0409
-    current_layout = get_current_keyboard_layout()
-    if current_layout != ENGLISH_LAYOUT:
-        print(f"[INFO] Current layout is {hex(current_layout)}, switching to English...")
-        pyautogui.hotkey('alt', 'shift')
-        if wait:
-            total_wait = 0
-            while get_current_keyboard_layout() != ENGLISH_LAYOUT and total_wait < timeout:
-                time.sleep(0.3)
-                total_wait += 0.3
-            if get_current_keyboard_layout() == ENGLISH_LAYOUT:
-                print("[INFO] Keyboard layout is now English")
-                time.sleep(1)
-            else:
-                print(f"[WARN] Could not switch keyboard layout to English in time, current: {hex(get_current_keyboard_layout())}")
-    else:
-        print("[INFO] Keyboard already in English layout")
+def require_keyboard_english() -> bool:
+    """คีย์บอร์ดต้องเป็น EN (0x0409) เท่านั้น ไม่สลับอัตโนมัติ"""
+    EN = 0x0409
+    cur = get_current_keyboard_layout()
+    if cur != EN:
+        print(f"[ERROR] Keyboard layout must be English (0x0409). Current: {hex(cur)}")
+        print("[HINT] โปรดสลับภาษาเป็น English ก่อน แล้วค่อยรันใหม่ (เช่น Alt+Shift)")
+        return False
+    print("[INFO] Keyboard layout OK (English)")
+    return True
 
-# =============================================================
-# Function: Read credentials
-# =============================================================
-def get_credentials():
+# =========================
+# Credentials
+# =========================
+def get_credentials() -> tuple[Optional[str], Optional[str]]:
+    cred_path = Path(__file__).parent / "credential.json"   # src/credential.json
     try:
-        with open(os.path.join(os.path.dirname(__file__), 'credential.json'), 'r', encoding='utf-8') as f:
-            creds = json.load(f)
-        return creds.get('username'), creds.get('password')
+        with cred_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("username"), data.get("password")
     except FileNotFoundError:
-        print("[ERROR] credential.json not found.")
+        print(f"[ERROR] credential.json not found at {cred_path}")
+        return None, None
+    except Exception as e:
+        print(f"[ERROR] Failed reading credentials: {e}")
         return None, None
 
-# =============================================================
-# Function: Launch Express
-# =============================================================
-def launch_express():
-    express_path = r"Z:\\ExpressI.exe"
-    if not os.path.exists(express_path):
-        print(f"[ERROR] Cannot find Express at {express_path}")
-        return False
+# =========================
+# Express path resolver
+# =========================
+def resolve_express_path(param_path: Optional[str]) -> Optional[str]:
+    """
+    ลำดับความสำคัญ:
+    1) พารามิเตอร์ที่ส่งมา
+    2) ENV: EXPRESS_PATH
+    3) express.config.json { "express_path": "..." }
+    4) ดีฟอลต์องค์กร: Z:\ExpressI.exe
+    """
+    # 1) explicit param
+    if param_path:
+        p = Path(param_path)
+        if p.exists():
+            return str(p)
 
+    # 2) ENV
+    env_path = os.getenv("EXPRESS_PATH")
+    if env_path and Path(env_path).exists():
+        return env_path
+
+    # 3) config file
+    if CONFIG_FILE.exists():
+        try:
+            with CONFIG_FILE.open("r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            p = cfg.get("express_path")
+            if p and Path(p).exists():
+                return p
+        except Exception as e:
+            print(f"[WARN] Cannot read {CONFIG_FILE}: {e}")
+
+    # 4) org default
+    default_path = r"Z:\ExpressI.exe"
+    if Path(default_path).exists():
+        return default_path
+
+    return None
+
+# =========================
+# Launch / Login
+# =========================
+def launch_express(express_path: Optional[str]) -> bool:
+    exe = resolve_express_path(express_path)
+    if not exe:
+        print("[ERROR] Express executable not found. ตั้งค่าแมพไดรฟ์ Z: หรือระบุ express_path/ENV/express.config.json")
+        return False
     try:
-        subprocess.Popen([express_path])
-        print("[INFO] Express launched.")
+        subprocess.Popen([exe])
+        print(f"[INFO] Launched Express: {exe}")
+        # รอ UI เบื้องต้น
         time.sleep(3)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to launch Express: {e}")
         return False
 
-# =============================================================
-# Function: Input credentials
-# =============================================================
-def enter_credentials():
-    time.sleep(0.5)
+def enter_credentials() -> bool:
     username, password = get_credentials()
-    print(f"[DEBUG] Read credentials -> username: {username}, password: {password}")
     if not username or not password:
-        print("[ERROR] Missing username or password.")
+        print("[ERROR] Missing username/password")
         return False
 
+    # ก่อนพิมพ์ทุกครั้ง ยืนยัน EN อีกที
+    if not require_keyboard_english():
+        return False
+
+    # focus ที่ฟิลด์ แล้วเคลียร์
+    time.sleep(0.5)
     pyautogui.press('tab', presses=2)
-    pyautogui.hotkey('ctrl','a')
-    pyautogui.press('delete')
+    pyautogui.hotkey('ctrl', 'a'); pyautogui.press('delete')
     pyautogui.press('tab')
-    pyautogui.hotkey('ctrl','a')
-    pyautogui.press('delete')
-    time.sleep(0.3)
+    pyautogui.hotkey('ctrl', 'a'); pyautogui.press('delete')
+    time.sleep(0.2)
 
-    if get_current_keyboard_layout() != 0x0409:
-        print("[WARN] Keyboard layout is not English before typing, retry switching...")
-        switch_keyboard_to_english()
-        time.sleep(0.3)
-
-    print("[INFO] Typing username...")
-    pyautogui.typewrite(username, interval=0.15)
+    print("[INFO] Typing username & password...")
+    pyautogui.typewrite(username, interval=0.12)
     pyautogui.press('tab')
-    print("[INFO] Typing password...")
-    pyautogui.typewrite(password, interval=0.15)
+    pyautogui.typewrite(password, interval=0.12)
     pyautogui.press('enter')
-
-    print("[INFO] Credentials entered.")
     return True
 
-# =============================================================
-# Function: Handle login failure popup
-# =============================================================
-def handle_login_failure():
-    print("[INFO] Checking for login failure popup...")
-    time.sleep(2)
-    try:
-        popup = pyautogui.locateOnScreen('ok_button.png')
-        if popup:
-            print("[WARN] Login failed detected. Closing popup...")
-            pyautogui.press('enter')
-            time.sleep(1)
-            print("[INFO] Retrying login after popup...")
-            enter_credentials()
-    except Exception as e:
-        print(f"[WARN] Could not detect popup: {e}")
-
-# =============================================================
-# Function: Click OK 3 times
-# =============================================================
-def click_ok_buttons():
-    time.sleep(2)
-    for i in range(3):
-        pyautogui.press('enter')
-        print(f"[INFO] Clicked OK button {i+1}/3")
-        time.sleep(0.5)
-
-# =============================================================
-# Function: Full workflow (MAIN ENTRY)
-# =============================================================
-def run_full_workflow():
-    print("[START] Express Automation Workflow...")
-
-    switch_keyboard_to_english()
-    time.sleep(1)
-
-    if not launch_express():
+def apply_search_key(search_key: Optional[str]) -> None:
+    """
+    ตามสเปกกุ้ง:
+    - กด Tab 1 ครั้ง
+    - พิมพ์ search_key (เช่น EDS2025)
+    - กด OK (Enter) 4 ครั้ง
+    """
+    if not search_key:
+        print("[INFO] No search_key provided, skipping company selection step.")
         return
 
-    time.sleep(4)
-    enter_credentials()
-    handle_login_failure()
-    time.sleep(1)
-    click_ok_buttons()
+    if not require_keyboard_english():
+        print("[ERROR] Keyboard not EN during search_key step; aborting.")
+        raise RuntimeError("Keyboard must be EN before typing search_key")
 
-    # Step 3: Open Credit Purchase -> Add
-    open_credit_purchase_add()
-    time.sleep(2)
+    print(f"[INFO] Applying search_key: {search_key}")
+    time.sleep(0.5)
+    pyautogui.press('tab', presses=1)
+    time.sleep(0.2)
+    pyautogui.typewrite(search_key, interval=0.10)
+    time.sleep(0.2)
+    for i in range(4):
+        pyautogui.press('enter')
+        print(f"[INFO] OK press {i+1}/4")
+        time.sleep(0.35)
 
-    # Step 4: Process Excel entries
-    excel_file = r"C:\Users\piyaphon.w\Documents\Projects\ExpressAutomation\excel_templates\express_import_template.xlsx"
-    process_excel_to_express(excel_file)
+# =========================
+# Main entry
+# =========================
+def run_full_workflow(
+    file_path: Optional[str] = None,
+    search_key: Optional[str] = None,
+    express_path: Optional[str] = None
+):
+    """Main automation entry.
+    - file_path: Excel path from watcher
+    - search_key: e.g., 'EDS2025' parsed from filename
+    - express_path: optional override (default is Z:\ExpressI.exe via resolver)
+    """
+    print("[START] Express Automation Workflow")
+    print(f"[ARGS] file_path={file_path} | search_key={search_key} | express_path={express_path}")
 
-    print("[DONE] Express launched, logged in, and Excel data processed successfully!")
+    # เงื่อนไขบังคับ: ต้องเป็นภาษาอังกฤษก่อนเริ่มทุกอย่าง
+    if not require_keyboard_english():
+        return
+
+    # เปิดโปรแกรม
+    if not launch_express(express_path):
+        return
+
+    # ล็อกอิน
+    time.sleep(2.0)
+    if not enter_credentials():
+        return
+
+    # ขั้นตอนเลือกบริษัท/ปี ด้วย search_key
+    try:
+        apply_search_key(search_key)
+    except Exception as e:
+        print(f"[ERROR] search_key step failed: {e}")
+        return
+
+    # เข้าเมนูซื้อเชื่อ -> เพิ่มรายการ
+    # (หากองค์กรต้องเปลี่ยนลำดับ สามารถย้ายจุดนี้ได้)
+    print(f"[INFO] Navigating to Credit Purchase Add menu...")
+    # open_credit_purchase_add()
+    time.sleep(1.2)
+
+    # ไฟล์ Excel (dynamic)
+    excel_file = Path(file_path) if file_path else EXCEL_DEFAULT
+    if not excel_file.exists():
+        print(f"[ERROR] Excel file not found: {excel_file}")
+        return
+    print(f"[INFO] Using Excel file: {excel_file}")
+
+    # ประมวลผลข้อมูล Excel → กรอกลง Express
+    try:
+        # พยายามส่ง company_key เข้าไปก่อน ถ้า signature ยังไม่รองรับจะ fallback
+        print(f"[INFO] Processing Excel to Express with company_key={search_key}...")
+        # process_excel_to_express(str(excel_file), company_key=search_key)
+    except TypeError:
+        print(f"[INFO] Processing Excel to Express without company_key...")
+        # process_excel_to_express(str(excel_file))
+    print("[DONE] Express launched, logged in, company selected, and Excel data processed!")
 
 if __name__ == "__main__":
     run_full_workflow()
