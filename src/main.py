@@ -6,21 +6,23 @@ from typing import Optional, Tuple, Dict
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from tkinter import messagebox, Tk
+import threading
+import shutil
 
 # ========================
 # CONFIG
 # ========================
-PROJECT_ROOT = Path(__file__).resolve().parents[1]            # .../ExpressAutomation
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WATCH_FOLDER = PROJECT_ROOT / "excel_templates"
 WATCH_FOLDER.mkdir(parents=True, exist_ok=True)
+PROCESSED_FOLDER = WATCH_FOLDER / "processed"
+PROCESSED_FOLDER.mkdir(parents=True, exist_ok=True)
 
 EXPECTED_COLUMNS = ["Dept", "Date", "Supplier", "Invoice", "Code", "Qty", "UnitCost"]
 
-# ดีบ๊าวน์อย่างน้อย (วินาที) ต่อไฟล์ เพื่อลดการเรียกซ้ำเมื่อแอป sync/เขียนหลายรอบ
-MIN_INTERVAL_SECONDS = 3.0
+# ดีบ๊าวน์รวมไฟล์ (กัน spam เล็กน้อย แม้เรามี RUN_LOCK แล้ว)
+MIN_INTERVAL_SECONDS = 5.0
 
-# รูปแบบชื่อไฟล์ที่ "แนะนำ": COMPANY-YYYY(-anything).xlsx
-# เช่น: EDS-2025-RR.xlsx, SH-2025-batch1.xlsx
 RE_FILENAME = re.compile(r"^([A-Za-z]+)-(\d{4})(?:-[A-Za-z0-9._-]+)?$", re.IGNORECASE)
 
 # ========================
@@ -33,14 +35,12 @@ def show_popup(title: str, message: str):
         messagebox.showinfo(title, message)
         root.destroy()
     except Exception:
-        # เผื่อรันในสภาพแวดล้อมที่ไม่มี GUI
         print(f"[POPUP:{title}] {message}")
 
 # ========================
 # Utils
 # ========================
 def wait_file_ready(path: Path, timeout=10, interval=0.2) -> bool:
-    """รอจนไฟล์นิ่งและเปิดอ่านได้ (กันเคสกำลังคัดลอก/เขียน)"""
     start = time.time()
     last_size = -1
     while time.time() - start < timeout:
@@ -60,11 +60,7 @@ def wait_file_ready(path: Path, timeout=10, interval=0.2) -> bool:
 def is_excel_file(path: Path) -> bool:
     return path.suffix.lower() in (".xlsx", ".xls")
 
-def parse_filename_for_search_key(filename_no_ext: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """
-    คืนค่า: (company_upper, year_str, search_key) หรือ (None, None, None) ถ้าไม่ตรงแพทเทิร์น
-    ตัวอย่าง: 'EDS-2025-RR' -> ('EDS', '2025', 'EDS2025')
-    """
+def parse_filename_for_search_key(filename_no_ext: str):
     m = RE_FILENAME.match(filename_no_ext)
     if not m:
         return None, None, None
@@ -73,12 +69,11 @@ def parse_filename_for_search_key(filename_no_ext: str) -> Tuple[Optional[str], 
     return company, year, f"{company}{year}"
 
 def validate_excel_schema(path: Path) -> bool:
-    """ตรวจหัวคอลัมน์ตาม EXPECTED_COLUMNS"""
     try:
         if not wait_file_ready(path):
             show_popup("⚠️ File Busy", f"File '{path.name}' is not ready to read yet.")
             return False
-        df = pd.read_excel(path)  # ต้องมี openpyxl สำหรับ .xlsx
+        df = pd.read_excel(path)
         missing = [c for c in EXPECTED_COLUMNS if c not in df.columns]
         if missing:
             show_popup("❌ Template Error", f"Missing columns: {', '.join(missing)}")
@@ -92,9 +87,11 @@ def validate_excel_schema(path: Path) -> bool:
         return False
 
 # ========================
-# Debounce / processed cache
+# Debounce & processed registry & run-lock
 # ========================
 _last_run: Dict[str, float] = {}
+_processed_by_mtime: Dict[str, float] = {}   # key=abs path, value=last mtime processed
+RUN_LOCK = threading.Lock()                  # กันยิงซ้อนระหว่างกำลังรัน
 
 def should_run_now(p: Path, min_interval=MIN_INTERVAL_SECONDS) -> bool:
     key = str(p.resolve())
@@ -105,26 +102,45 @@ def should_run_now(p: Path, min_interval=MIN_INTERVAL_SECONDS) -> bool:
     _last_run[key] = now
     return True
 
+def already_processed(p: Path) -> bool:
+    key = str(p.resolve())
+    try:
+        mtime = p.stat().st_mtime
+    except FileNotFoundError:
+        return False
+    last_m = _processed_by_mtime.get(key)
+    if last_m is not None and abs(last_m - mtime) < 1e-6:
+        return True
+    return False
+
+def mark_processed(p: Path):
+    key = str(p.resolve())
+    try:
+        _processed_by_mtime[key] = p.stat().st_mtime
+    except FileNotFoundError:
+        pass
+
 # ========================
 # Handler
 # ========================
 class ExcelHandler(FileSystemEventHandler):
-    def _maybe_process(self, p: Path):
+    def _maybe_process(self, p: Path, event_name: str):
         if not is_excel_file(p):
             return
 
-        # กันยิงถี่ ๆ
+        # ข้ามถ้าประมวลผลไฟล์นี้ (mtime เดิม) ไปแล้ว
+        if already_processed(p):
+            return
+
+        # กัน spam เบื้องต้น
         if not should_run_now(p):
             return
 
-        # แจ้ง event
-        print(f"[EVENT] {p}")
+        print(f"[EVENT:{event_name}] {p}")
 
-        # ตรวจ schema ของไฟล์
         if not validate_excel_schema(p):
             return
 
-        # แยก search_key จากชื่อไฟล์ (ไม่บังคับ แต่จะแจ้งเตือนถ้าไม่ตรงรูปแบบ)
         company, year, search_key = parse_filename_for_search_key(p.stem)
         if search_key:
             print(f"[INFO] Parsed search_key from filename: {search_key}")
@@ -136,30 +152,51 @@ class ExcelHandler(FileSystemEventHandler):
                 f"Received: {p.name}"
             )
 
-        # เรียก workflow (พยายามส่งพารามิเตอร์ก่อน หากยังไม่รองรับค่อย fallback)
+        # ---- RUN LOCK: ถ้ากำลังรันอยู่ ให้ข้ามครั้งนี้ ----
+        if not RUN_LOCK.acquire(blocking=False):
+            print("[SKIP] Workflow is already running. This event will be ignored.")
+            return
+
         try:
-            from express_launcher import run_full_workflow
+            # เรียก workflow
+            print(f"[DONE] Sending function with parameters: file_path={p}, search_key={search_key}")
             try:
-                print(f"[DONE] Sending function with parameters: file_path={str(p)}, search_key={search_key}")
+                from express_launcher import run_full_workflow
                 run_full_workflow(file_path=str(p), search_key=search_key)
             except TypeError:
-                # รองรับเวอร์ชันเก่า
-                print(f"[DONE] Sending function without parameters")
-                # run_full_workflow()
-        except Exception as e:
-            show_popup("❌ Workflow Error", f"run_full_workflow failed:\n{e}")
+                from express_launcher import run_full_workflow
+                run_full_workflow()
+
+            # ทำเครื่องหมายว่าไฟล์นี้ (mtime นี้) ถูกประมวลผลแล้ว
+            mark_processed(p)
+
+            # (แนะนำ) ย้ายไฟล์เข้าโฟลเดอร์ processed/ เพื่อกัน event ซ้ำในอนาคต
+            target = PROCESSED_FOLDER / p.name
+            try:
+                # ถ้าซ้ำชื่อ ให้เติม timestamp
+                if target.exists():
+                    ts = time.strftime("%Y%m%d-%H%M%S")
+                    target = PROCESSED_FOLDER / f"{p.stem}-{ts}{p.suffix}"
+                shutil.move(str(p), str(target))
+                print(f"[INFO] Moved processed file to: {target}")
+            except Exception as e:
+                print(f"[WARN] Could not move file to processed/: {e}")
+
+        finally:
+            RUN_LOCK.release()
 
     def on_created(self, event):
         if not event.is_directory:
-            self._maybe_process(Path(event.src_path))
+            self._maybe_process(Path(event.src_path), "created")
 
-    def on_modified(self, event):
-        if not event.is_directory:
-            self._maybe_process(Path(event.src_path))
+    # ⚠️ ปิด on_modified เพื่อตัดรอบซ้ำ
+    # def on_modified(self, event):
+    #     if not event.is_directory:
+    #         self._maybe_process(Path(event.src_path), "modified")
 
     def on_moved(self, event):
         if not event.is_directory:
-            self._maybe_process(Path(event.dest_path))
+            self._maybe_process(Path(event.dest_path), "moved")
 
 # ========================
 # Main
@@ -167,7 +204,8 @@ class ExcelHandler(FileSystemEventHandler):
 if __name__ == "__main__":
     print(f"[WATCHING] {WATCH_FOLDER}")
     observer = Observer()
-    observer.schedule(ExcelHandler(), str(WATCH_FOLDER), recursive=False)
+    handler = ExcelHandler()
+    observer.schedule(handler, str(WATCH_FOLDER), recursive=False)
     observer.start()
     try:
         while True:
