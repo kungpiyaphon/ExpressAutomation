@@ -20,3 +20,5 @@ colorama==0.4.6
 
 # File monitoring
 watchdog==3.0.0
+
+keyring>=24

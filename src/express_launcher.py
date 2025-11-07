@@ -3,13 +3,24 @@ import json
 import time
 import subprocess
 import ctypes
+import keyring
+import tkinter as tk
+
 from pathlib import Path
 from typing import Optional
+from tkinter import simpledialog, messagebox
 
 import pyautogui
 
 from express_menu import open_credit_purchase_add
 from express_excel_entry import process_excel_to_express
+
+APP_NAME = "ExpressAutomation"  # ชื่อ service ใน Windows Credential Manager
+APP_DIR = Path(os.getenv("APPDATA", str(Path.home()))) / APP_NAME
+APP_DIR.mkdir(parents=True, exist_ok=True)
+
+# เก็บ username (อย่างเดียว) ไว้ในไฟล์ meta ที่ %APPDATA%
+CRED_META = APP_DIR / "credential_meta.json"
 
 # -------------------------
 # Global behavior for PyAutoGUI
@@ -48,18 +59,62 @@ def require_keyboard_english() -> bool:
 # =========================
 # Credentials
 # =========================
-def get_credentials() -> tuple[Optional[str], Optional[str]]:
-    cred_path = Path(__file__).parent / "credential.json"   # src/credential.json
+def prompt_and_save_credentials_keyring() -> tuple[Optional[str], Optional[str]]:
+    """First-run: ถาม username/password แล้วบันทึก: 
+       - username ลงไฟล์ meta
+       - password ลง Windows Credential Manager ผ่าน keyring
+    """
+    root = tk.Tk()
+    root.withdraw()
+
+    username = simpledialog.askstring("First-time Setup", "Username:", parent=root)
+    if not username:
+        messagebox.showerror("Setup", "Username is required.")
+        root.destroy()
+        return None, None
+
+    password = simpledialog.askstring("First-time Setup", "Password:", show="*", parent=root)
+    if not password:
+        messagebox.showerror("Setup", "Password is required.")
+        root.destroy()
+        return None, None
+
     try:
-        with cred_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("username"), data.get("password")
-    except FileNotFoundError:
-        print(f"[ERROR] credential.json not found at {cred_path}")
-        return None, None
+        CRED_META.write_text(
+            json.dumps({"username": username}, ensure_ascii=False, indent=2),
+            encoding="utf-8"
+        )
+        keyring.set_password(APP_NAME, f"{username}:password", password)
+        print("[INFO] Credentials saved to Windows Credential Manager.")
     except Exception as e:
-        print(f"[ERROR] Failed reading credentials: {e}")
+        messagebox.showerror("Setup", f"Failed saving credentials: {e}")
+        root.destroy()
         return None, None
+
+    root.destroy()
+    return username, password
+
+
+def get_credentials() -> tuple[Optional[str], Optional[str]]:
+    """อ่าน credential:
+       - อ่าน username จาก %APPDATA%/ExpressAutomation/credential_meta.json
+       - อ่าน password จาก Windows Credential Manager (keyring)
+       - ถ้าไม่มี → เปิด dialog first-run แล้วบันทึก
+    """
+    # 1) try read username meta
+    if CRED_META.exists():
+        try:
+            meta = json.loads(CRED_META.read_text(encoding="utf-8"))
+            username = meta.get("username")
+            if username:
+                password = keyring.get_password(APP_NAME, f"{username}:password")
+                if password:
+                    return username, password
+        except Exception as e:
+            print(f"[WARN] Failed to read credential meta: {e}")
+
+    # 2) first-run prompt
+    return prompt_and_save_credentials_keyring()
 
 # =========================
 # Express path resolver
