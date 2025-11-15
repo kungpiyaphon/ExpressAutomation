@@ -228,11 +228,13 @@ def convert_and_write(input_path: Path, company_choice: str, year: str, suffix_t
     filename = f"{company_choice}-{year}-{suffix_tag}.xlsx"
     target_path = TEMPLATE_FOLDER / filename
 
-    # atomic write: write to tmp then replace
+    # atomic write: write to tmp first
     tmp = target_path.with_suffix(target_path.suffix + ".tmp")
     out_df.to_excel(tmp, index=False, engine="openpyxl")
-    # ensure written then move
-    tmp.replace(target_path)
+
+    # Move tmp → final path to trigger watchdog event
+    shutil.move(str(tmp), str(target_path))
+
     return target_path
 
 # ---------------------------

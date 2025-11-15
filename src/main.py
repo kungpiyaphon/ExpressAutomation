@@ -130,10 +130,12 @@ class ExcelHandler(FileSystemEventHandler):
 
         # ข้ามถ้าประมวลผลไฟล์นี้ (mtime เดิม) ไปแล้ว
         if already_processed(p):
+            print(f"[SKIP] already processed (mtime same): {p.name}")
             return
 
         # กัน spam เบื้องต้น
         if not should_run_now(p):
+            print(f"[SKIP] too frequent: {p.name}")
             return
 
         print(f"[EVENT:{event_name}] {p}")
@@ -162,9 +164,9 @@ class ExcelHandler(FileSystemEventHandler):
             print(f"[DONE] Sending function with parameters: file_path={p}, search_key={search_key}")
             try:
                 from express_launcher import run_full_workflow
-                # force test key
-                search_key = "DATAT"
+                print(f"[INFO] Launching workflow for template {p.name} with search_key={search_key}")
                 run_full_workflow(file_path=str(p), search_key=search_key)
+                print(f"[INFO] Workflow finished for {p.name}")
             except TypeError:
                 from express_launcher import run_full_workflow
                 run_full_workflow()
@@ -172,7 +174,7 @@ class ExcelHandler(FileSystemEventHandler):
             # ทำเครื่องหมายว่าไฟล์นี้ (mtime นี้) ถูกประมวลผลแล้ว
             mark_processed(p)
 
-            # (แนะนำ) ย้ายไฟล์เข้าโฟลเดอร์ processed/ เพื่อกัน event ซ้ำในอนาคต
+            # ย้ายไฟล์เข้าโฟลเดอร์ processed/ เพื่อกัน event ซ้ำในอนาคต
             target = PROCESSED_FOLDER / p.name
             try:
                 # ถ้าซ้ำชื่อ ให้เติม timestamp
@@ -201,6 +203,34 @@ class ExcelHandler(FileSystemEventHandler):
             self._maybe_process(Path(event.dest_path), "moved")
 
 # ========================
+# Polling fallback (scans folder periodically)
+# ========================
+def poll_folder(handler: ExcelHandler, interval: float = 2.0):
+    """
+    Periodically scan WATCH_FOLDER for excel files and call handler._maybe_process
+    This is a fallback in case filesystem events are missed.
+    """
+    while True:
+        try:
+            for f in WATCH_FOLDER.iterdir():
+                try:
+                    if not f.is_file():
+                        continue
+                    if not is_excel_file(f):
+                        continue
+                    # if not already processed and not too frequent -> call handler
+                    if not already_processed(f) and should_run_now(f):
+                        print(f"[POLL] detected file -> {f.name}")
+                        # call same internal handler (event_name 'polled')
+                        handler._maybe_process(f, "polled")
+                except Exception as e:
+                    print(f"[POLL ERROR] checking {f}: {e}")
+            time.sleep(interval)
+        except Exception as e:
+            print(f"[POLL ERROR] {e}")
+            time.sleep(interval)
+
+# ========================
 # Main
 # ========================
 if __name__ == "__main__":
@@ -209,6 +239,11 @@ if __name__ == "__main__":
     handler = ExcelHandler()
     observer.schedule(handler, str(WATCH_FOLDER), recursive=False)
     observer.start()
+
+    # start poller thread as fallback
+    poller = threading.Thread(target=poll_folder, args=(handler,), daemon=True)
+    poller.start()
+
     try:
         while True:
             time.sleep(0.5)
