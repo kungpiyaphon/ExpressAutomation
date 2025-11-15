@@ -1,35 +1,40 @@
 # Virtual environment
 venv/
-.vscode/
 
-# Python cache and temp files
+# Python cache & temp
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.log
 
-# build output
-/dist/
-/build/
-/*.exe
+# Build
+dist/
+build/
+*.exe
 
-# Excel temporary files
+# Excel temp
 ~$*.xlsx
+*.tmp
 
-
-# System / Editor files
+# System / Editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
 
-
-# OS generated files
+# OS temp
 *.swp
 *.swo
 
-
-# Logs or local configs
+# Logs / env
 logs/
 .env
+
+# Processed folders (never commit generated exports)
+incoming_exports/processed/
+excel_templates/processed/
+
+# If you want: ignore generated export templates
+# excel_templates/*.xlsx
+# (uncomment only if templates are ALWAYS auto-generated)
