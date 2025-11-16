@@ -7,13 +7,29 @@ This project is a Python-based system designed to automatically monitor Excel fi
 ## 📂 Project Structure
 
 ```
-project-root/
+ExpressAutomation/
+├─ src/
+│  ├─ main.py
+│  ├─ express_excel_entry.py
+│  ├─ express_launcher.py
+│  └─ express_menu.py
 │
-├── venv/                    # Virtual environment (auto-created, not committed)
-├── main.py                  # Main entry point for running the file monitor
-├── requirements.txt         # Dependencies
-├── templates/               # Excel templates or reference files
-└── README.md                # Project documentation (this file)
+├─ tools/
+│  └─ export_watcher_converter.py    <-- สคริปต์ที่ผมให้
+│
+├─ incoming_exports/                 <-- **เพิ่ม**
+│  └─ processed/                     <-- **เพิ่ม**
+│
+├─ excel_templates/
+│  ├─ processed/
+│  └─ EDS-2025-RR.xlsx
+│
+├─ venv/
+├─ .gitignore
+├─ express.config.json
+├─ main.spec
+├─ README.md
+└─ requirements.txt
 ```
 
 ---
