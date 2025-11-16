@@ -294,8 +294,8 @@ def process_template(path: Path):
                 run_full_workflow()
         finally:
             RUN_LOCK.release()
-    # mark and move to processed
-    mark_processed(path)
+    # move to processed and then mark. Marking only after a successful move
+    # prevents the file remaining in-place but being considered processed.
     dest = TEMPLATE_PROCESSED / path.name
     if dest.exists():
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -303,6 +303,8 @@ def process_template(path: Path):
     try:
         shutil.move(str(path), str(dest))
         log.info("Moved template to processed: %s", dest)
+        # mark processed using the final location's timestamp
+        mark_processed(dest)
     except Exception:
         log.exception("Failed to move template to processed: %s", path)
 
