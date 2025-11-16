@@ -11,8 +11,13 @@ Single-process automation service:
 Usage:
     python src/main.py
 
-Environment:
-    NO_GUI=1    -> run in headless mode (no tkinter dialogs; uses defaults)
+Behavior change:
+ - If NO_GUI not set (default), on start the program shows a popup that displays the
+   incoming_exports path and asks the user to either:
+     * Open Folder (opens Explorer and then starts watcher)
+     * Copy Path & Start (copies the path to clipboard and starts watcher)
+     * Cancel (or close) to quit immediately
+ - If NO_GUI=1, the popup is skipped and the service starts headless.
 """
 from __future__ import annotations
 import os
@@ -249,17 +254,14 @@ def mark_processed(path: Path):
     except Exception:
         pass
 
-
 def is_processing(path: Path) -> bool:
     return str(path.resolve()) in _processing
-
 
 def mark_processing(path: Path):
     try:
         _processing.add(str(path.resolve()))
     except Exception:
         pass
-
 
 def unmark_processing(path: Path):
     try:
@@ -497,10 +499,76 @@ def poll_loop(interval: float = 2.0):
         time.sleep(interval)
 
 # ---------------------------
+# GUI prompt for incoming path
+# ---------------------------
+def prompt_incoming_path(path: Path) -> bool:
+    """
+    Show a popup to user with options:
+      - Yes/Open Folder : open explorer at path and then start watcher
+      - No/Copy Path & Start : copy path to clipboard and start watcher
+      - Cancel/Close : exit program (return False)
+
+    Returns True to continue (start watcher), False to exit.
+    """
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+    except Exception as e:
+        log.exception("tkinter not available or failed to import: %s", e)
+        return False
+
+    root = tk.Tk()
+    root.withdraw()
+
+    msg = (
+        f"โปรแกรมจะเฝ้าตรวจโฟลเดอร์สำหรับไฟล์ที่ต้อง Save As:\n\n{str(path)}\n\n"
+        "เลือก Yes เพื่อเปิดโฟลเดอร์ (Explorer)\n"
+        "เลือก No เพื่อคัดลอก path ลง clipboard แล้วเริ่มทำงาน\n"
+        "เลือก Cancel เพื่อยกเลิกและออกจากโปรแกรม"
+    )
+
+    resp = messagebox.askyesnocancel("X2Express - Incoming folder", msg, parent=root)
+    # resp: True => Yes, False => No, None => Cancel/closed
+    if resp is None:
+        root.destroy()
+        log.info("User cancelled at startup prompt.")
+        return False
+    if resp is True:
+        # Open folder then continue
+        try:
+            os.startfile(str(path))
+        except Exception:
+            log.exception("Failed to open folder: %s", path)
+        root.destroy()
+        return True
+    else:
+        # Copy path to clipboard and continue
+        try:
+            root.clipboard_clear()
+            root.clipboard_append(str(path))
+            # show info that path was copied
+            messagebox.showinfo("Path copied", "Path ถูกคัดลอกไปยัง clipboard แล้ว\nโปรด Save As แล้ว Paste (Ctrl+V) ลงในช่องชื่อไฟล์", parent=root)
+        except Exception:
+            log.exception("Failed to copy to clipboard: %s", path)
+        root.destroy()
+        return True
+
+# ---------------------------
 # Entrypoint
 # ---------------------------
 def main():
     log.info("Automation service starting...")
+    # If not headless, prompt user for incoming folder path first
+    if not HEADLESS:
+        try:
+            cont = prompt_incoming_path(INCOMING)
+            if not cont:
+                log.info("Startup prompt cancelled; exiting.")
+                return
+        except Exception:
+            log.exception("Startup prompt failed; exiting.")
+            return
+
     # Observers
     obs = Observer()
     incoming_handler = IncomingHandler()
