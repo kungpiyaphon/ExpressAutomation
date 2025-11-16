@@ -14,11 +14,8 @@ ExpressAutomation/
 │  ├─ express_launcher.py
 │  └─ express_menu.py
 │
-├─ tools/
-│  └─ export_watcher_converter.py    <-- สคริปต์ที่ผมให้
-│
-├─ incoming_exports/                 <-- **เพิ่ม**
-│  └─ processed/                     <-- **เพิ่ม**
+├─ incoming_exports/
+│  └─ processed/
 │
 ├─ excel_templates/
 │  ├─ processed/
@@ -93,6 +90,27 @@ Ctrl + Shift + P → Developer: Reload Window
 * ✅ File monitoring using **watchdog**
 * ✅ Excel validation logic with custom rules
 * ✅ Template-based structure for testing and expansion
+
+## ⚡ Tuning speeds (env vars)
+
+To speed up or slow down the UI automation safely, set these environment variables before running `python src/main.py`.
+
+- `TAP_DELAY` (float): pause (s) after each Tab/Enter step in `express_excel_entry.py`. Default `0.4`.
+- `TYPE_INTERVAL` (float): per-character typing interval (s). Default `0.04`.
+- `ROW_DELAY` (float): pause (s) between rows. Default `0.2`.
+- `LAUNCH_WAIT` (float): wait (s) after launching Express. Default `3.0`.
+- `LOGIN_WAIT` (float): brief wait before typing credentials. Default `1.0`.
+- `LOGIN_TYPE_INTERVAL` (float): typing interval used during login. Default `0.06`.
+- `SEARCH_TYPE_INTERVAL` (float): typing interval for company search key. Default `0.06`.
+- `SEARCH_OK_DELAY` (float): pause (s) between OK presses during search. Default `0.25`.
+- `KEY_INTERVAL` and `STEP_DELAY` (express menu): further fine-grain menu timing; defaults `0.03` and `0.20`.
+
+Example (PowerShell):
+
+```powershell
+ $env:TAP_DELAY = '0.5'
+ python src/main.py
+```
 
 --- 
 

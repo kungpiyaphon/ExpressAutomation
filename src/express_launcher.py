@@ -35,6 +35,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]   # .../ExpressAutomation
 EXCEL_DEFAULT = PROJECT_ROOT / "excel_templates" / "express_import_template.xlsx"
 CONFIG_FILE = PROJECT_ROOT / "express.config.json"   # optional
 
+# Tunable timing parameters (can be set via environment variables)
+LAUNCH_WAIT = float(os.getenv("LAUNCH_WAIT", "3.0"))
+LOGIN_WAIT = float(os.getenv("LOGIN_WAIT", "1.0"))
+LOGIN_TYPE_INTERVAL = float(os.getenv("LOGIN_TYPE_INTERVAL", "0.06"))
+SEARCH_TYPE_INTERVAL = float(os.getenv("SEARCH_TYPE_INTERVAL", "0.06"))
+SEARCH_OK_DELAY = float(os.getenv("SEARCH_OK_DELAY", "0.25"))
+
 # =========================
 # Keyboard layout helpers
 # =========================
@@ -167,8 +174,8 @@ def launch_express(express_path: Optional[str]) -> bool:
     try:
         subprocess.Popen([exe])
         print(f"[INFO] Launched Express: {exe}")
-        # รอ UI เบื้องต้น
-        time.sleep(3)
+        # รอ UI เบื้องต้น (tunable)
+        time.sleep(LAUNCH_WAIT)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to launch Express: {e}")
@@ -193,9 +200,9 @@ def enter_credentials() -> bool:
     time.sleep(0.2)
 
     print("[INFO] Typing username & password...")
-    pyautogui.typewrite(username, interval=0.12)
+    pyautogui.typewrite(username, interval=LOGIN_TYPE_INTERVAL)
     pyautogui.press('tab')
-    pyautogui.typewrite(password, interval=0.12)
+    pyautogui.typewrite(password, interval=LOGIN_TYPE_INTERVAL)
     pyautogui.press('enter')
     return True
 
@@ -218,12 +225,12 @@ def apply_search_key(search_key: Optional[str]) -> None:
     time.sleep(0.5)
     pyautogui.press('tab', presses=1)
     time.sleep(0.2)
-    pyautogui.typewrite(search_key, interval=0.10)
+    pyautogui.typewrite(search_key, interval=SEARCH_TYPE_INTERVAL)
     time.sleep(0.2)
     for i in range(4):
         pyautogui.press('enter')
         print(f"[INFO] OK press {i+1}/4")
-        time.sleep(0.35)
+        time.sleep(SEARCH_OK_DELAY)
 
 # =========================
 # Main entry

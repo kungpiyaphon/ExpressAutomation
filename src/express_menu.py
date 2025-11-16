@@ -1,10 +1,14 @@
 import time
 import pyautogui
 
-# ปรับได้ตามเครื่อง/เครือข่าย
-DEFAULT_KEY_INTERVAL = 0.05     # เวลาคั่นแต่ละคีย์
-STEP_DELAY = 0.25               # เวลาคั่นแต่ละสเต็ป
-RETRY = 3                       # จำนวนครั้งที่ลองซ้ำ
+import os
+
+# ปรับได้ตามเครื่อง/เครือข่าย (สามารถตั้งผ่าน env vars)
+# DEFAULT_KEY_INTERVAL: pause inserted between low-level pyautogui key events
+# STEP_DELAY: pause after higher-level menu steps
+DEFAULT_KEY_INTERVAL = float(os.getenv("KEY_INTERVAL", "0.03"))
+STEP_DELAY = float(os.getenv("STEP_DELAY", "0.20"))
+RETRY = int(os.getenv("MENU_RETRY", "3"))
 
 pyautogui.PAUSE = DEFAULT_KEY_INTERVAL
 pyautogui.FAILSAFE = True  # มุมซ้ายบน = emergency stop

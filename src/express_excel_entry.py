@@ -38,9 +38,14 @@ pyautogui.PAUSE = 0.02
 DRY_RUN = os.getenv("DRY_RUN", "0") in ("1", "true", "True")
 STEP_MODE = os.getenv("STEP_MODE", "0") in ("1", "true", "True")
 
-TAP_DELAY = float(os.getenv("TAP_DELAY", "1.0"))         # delay after each tab/ok (1s per your request)
-TYPE_INTERVAL = float(os.getenv("TYPE_INTERVAL", "0.08"))  # typing char interval
-ROW_DELAY = float(os.getenv("ROW_DELAY", "0.6"))        # delay between rows
+# Tunable speeds (defaults tuned to be faster but safe).
+# These can be overridden via environment variables when running.
+# - TAP_DELAY: pause after each Tab/Enter/step (seconds)
+# - TYPE_INTERVAL: per-character typing interval used when filling form fields
+# - ROW_DELAY: pause between rows
+TAP_DELAY = float(os.getenv("TAP_DELAY", "0.4"))         # was 1.0 (slower), now 0.4s
+TYPE_INTERVAL = float(os.getenv("TYPE_INTERVAL", "0.04"))  # was 0.08, now 0.04s/char
+ROW_DELAY = float(os.getenv("ROW_DELAY", "0.2"))        # was 0.6, now 0.2s
 
 REQUIRED_COLS = ["Dept", "Date", "Supplier", "Invoice", "Code", "Qty", "UnitCost"]
 
