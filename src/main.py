@@ -230,6 +230,7 @@ def convert_export_to_template(src: Path, company: str, year: str, suffix_tag: s
 # ---------------------------
 RUN_LOCK = threading.Lock()
 _processed: Dict[str, float] = {}
+_processing: set[str] = set()
 
 def already_processed(path: Path) -> bool:
     k = str(path.resolve())
@@ -245,6 +246,24 @@ def already_processed(path: Path) -> bool:
 def mark_processed(path: Path):
     try:
         _processed[str(path.resolve())] = path.stat().st_mtime
+    except Exception:
+        pass
+
+
+def is_processing(path: Path) -> bool:
+    return str(path.resolve()) in _processing
+
+
+def mark_processing(path: Path):
+    try:
+        _processing.add(str(path.resolve()))
+    except Exception:
+        pass
+
+
+def unmark_processing(path: Path):
+    try:
+        _processing.discard(str(path.resolve()))
     except Exception:
         pass
 
@@ -269,44 +288,56 @@ def validate_template(path: Path) -> bool:
 def process_template(path: Path):
     if not path.exists():
         return
-    if already_processed(path):
-        log.debug("Template already processed (mtime same): %s", path.name)
+    # Avoid concurrent processing of the same file from multiple handlers
+    if is_processing(path):
+        log.debug("Template is already being processed: %s", path.name)
         return
-    if not validate_template(path):
-        log.warning("Template validation failed: %s", path.name)
-        return
-    # parse search_key from filename
-    search_key = parse_filename_search_key(path.stem)
-    log.info("Processing template %s (search_key=%s)", path.name, search_key)
-    # run express workflow (if available)
-    if run_full_workflow is None:
-        log.warning("express_launcher.run_full_workflow not available in this process; skipping actual run.")
-    else:
-        # Acquire RUN_LOCK to avoid concurrent workflows
-        if not RUN_LOCK.acquire(blocking=False):
-            log.warning("Workflow is busy; skipping: %s", path.name)
-            return
-        try:
-            try:
-                run_full_workflow(file_path=str(path), search_key=search_key)
-            except TypeError:
-                # fallback older signature
-                run_full_workflow()
-        finally:
-            RUN_LOCK.release()
-    # move to processed and then mark. Marking only after a successful move
-    # prevents the file remaining in-place but being considered processed.
-    dest = TEMPLATE_PROCESSED / path.name
-    if dest.exists():
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        dest = TEMPLATE_PROCESSED / f"{path.stem}-{ts}{path.suffix}"
+    mark_processing(path)
     try:
-        shutil.move(str(path), str(dest))
-        log.info("Moved template to processed: %s", dest)
-        # mark processed using the final location's timestamp
-        mark_processed(dest)
-    except Exception:
-        log.exception("Failed to move template to processed: %s", path)
+        if already_processed(path):
+            log.debug("Template already processed (mtime same): %s", path.name)
+            return
+        if not validate_template(path):
+            log.warning("Template validation failed: %s", path.name)
+            return
+
+        # parse search_key from filename
+        search_key = parse_filename_search_key(path.stem)
+        log.info("Processing template %s (search_key=%s)", path.name, search_key)
+
+        # run express workflow (if available)
+        if run_full_workflow is None:
+            log.warning("express_launcher.run_full_workflow not available in this process; skipping actual run.")
+        else:
+            # Acquire RUN_LOCK to avoid concurrent workflows
+            if not RUN_LOCK.acquire(blocking=False):
+                log.warning("Workflow is busy; skipping: %s", path.name)
+                return
+            try:
+                try:
+                    run_full_workflow(file_path=str(path), search_key=search_key)
+                except TypeError:
+                    # fallback older signature
+                    run_full_workflow()
+            finally:
+                RUN_LOCK.release()
+
+        # move to processed and then mark. Marking only after a successful move
+        # prevents the file remaining in-place but being considered processed.
+        dest = TEMPLATE_PROCESSED / path.name
+        if dest.exists():
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            dest = TEMPLATE_PROCESSED / f"{path.stem}-{ts}{path.suffix}"
+        try:
+            shutil.move(str(path), str(dest))
+            log.info("Moved template to processed: %s", dest)
+            # mark processed using the final location's timestamp
+            mark_processed(dest)
+        except Exception:
+            log.exception("Failed to move template to processed: %s", path)
+    finally:
+        # ensure processing flag is cleared so future events can handle the file
+        unmark_processing(path)
 
 # ---------------------------
 # Handlers: incoming exports and templates watchers
@@ -333,6 +364,11 @@ class IncomingHandler(FileSystemEventHandler):
             if not wait_file_ready(src, timeout=30.0):
                 log.warning("Incoming file not stable: %s", src)
                 return
+            # Prevent duplicate handling of the same incoming path (watcher + poller)
+            if is_processing(src):
+                log.debug("Incoming already being processed: %s", src)
+                return
+            mark_processing(src)
             # quick read test
             try:
                 _ = read_sheet_from_file(src)
@@ -391,8 +427,11 @@ class IncomingHandler(FileSystemEventHandler):
                 log.exception("Failed to move original: %s", src)
 
             # process the template immediately (don't rely only on fs events)
-            process_template(template_path)
-
+            try:
+                process_template(template_path)
+            finally:
+                # clear incoming processing flag (template processing has its own flag)
+                unmark_processing(src)
         finally:
             self._lock.release()
 
