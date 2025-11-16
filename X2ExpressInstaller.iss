@@ -4,7 +4,7 @@
 [Setup]
 AppName=X2Express
 AppVersion=1.0.0
-DefaultDirName={pf}\X2Express
+DefaultDirName={autopf}\X2Express
 DefaultGroupName=X2Express
 DisableProgramGroupPage=no
 UninstallDisplayIcon={app}\X2Express.exe
