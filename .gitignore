@@ -31,10 +31,9 @@ Thumbs.db
 logs/
 .env
 
-# Processed folders (never commit generated exports)
-incoming_exports/processed/
-excel_templates/processed/
+# Ignore all files inside processed folders except .gitkeep
+incoming_exports/processed/*
+!incoming_exports/processed/.gitkeep
 
-# If you want: ignore generated export templates
-# excel_templates/*.xlsx
-# (uncomment only if templates are ALWAYS auto-generated)
+excel_templates/processed/*
+!excel_templates/processed/.gitkeep
