@@ -157,3 +157,94 @@ This section records commit messages for easy reference.
 📧 *Internal IT Developer, EDS*
 🚀 Focused on automation and internal process optimization.
 
+---
+
+**Building An Executable (.exe)**
+
+- **Overview:** Use `PyInstaller` to package the Python app into a single Windows executable. You can either use a simple command or an existing `.spec` file (`main.spec`) included in the repo.
+- **Install PyInstaller:**
+
+  - Activate your virtual environment (bash on Windows):
+
+    ```bash
+    source venv/Scripts/activate
+    ```
+
+  - Install the package:
+
+    ```bash
+    pip install pyinstaller
+    ```
+
+- **Build command (single-file):**
+
+  - Example (includes data folders `excel_templates`, `icons`, `incoming_exports`):
+
+    ```bash
+    pyinstaller --clean --onefile --name ExpressAutomation \
+      --add-data "excel_templates;excel_templates" \
+      --add-data "icons;icons" \
+      --add-data "incoming_exports;incoming_exports" \
+      src/main.py
+    ```
+
+  - Notes:
+    - Use `--noconsole` if your app should not open a console window (GUI apps).
+    - On Windows the `--add-data` separator is `;` (semicolor). On other platforms use `:`.
+    - The produced executable will be in the `dist/` folder, for example `dist/ExpressAutomation.exe`.
+
+- **Using the included spec file:**
+
+  - If you prefer custom spec settings, run:
+
+    ```bash
+    pyinstaller main.spec
+    ```
+
+**Creating an Installer with Inno Setup (.iss)**
+
+- **Overview:** Inno Setup creates a Windows installer (.exe) that wraps your built executable and any supporting files. Download and install Inno Setup from https://jrsoftware.org/ if not already installed.
+- **Example `.iss` script (save as e.g. `build\\ExpressAutomation.iss`)**
+
+  ```innosetup
+  [Setup]
+  AppName=ExpressAutomation
+  AppVersion=1.0
+  DefaultDirName={pf}\\ExpressAutomation
+  DefaultGroupName=ExpressAutomation
+  OutputBaseFilename=ExpressAutomationInstaller
+  Compression=lzma
+  SolidCompression=yes
+
+  [Files]
+  Source: "dist\\ExpressAutomation.exe"; DestDir: "{app}"; Flags: ignoreversion
+  Source: "excel_templates\\*"; DestDir: "{app}\\excel_templates"; Flags: recursesubdirs createallsubdirs
+  Source: "incoming_exports\\*"; DestDir: "{app}\\incoming_exports"; Flags: recursesubdirs createallsubdirs
+  Source: "icons\\*"; DestDir: "{app}\\icons"; Flags: recursesubdirs createallsubdirs
+
+  [Icons]
+  Name: "{group}\\ExpressAutomation"; Filename: "{app}\\ExpressAutomation.exe"
+
+  [Run]
+  Filename: "{app}\\ExpressAutomation.exe"; Description: "Launch ExpressAutomation"; Flags: nowait postinstall skipifsilent
+  ```
+
+- **Compile the installer (command-line):**
+
+  - Example (Inno Setup default install path):
+
+    ```bash
+    "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" build\\ExpressAutomation.iss
+    ```
+
+  - Or open the `.iss` in the Inno Setup IDE and press Compile.
+
+- **Tips & adjustments:**
+  - Update `AppVersion`, `OutputBaseFilename`, and `DefaultDirName` as needed.
+  - If your app requires configuration files or logs, add them under `[Files]` and set appropriate `Flags`.
+  - Test the installer in a VM or clean machine before distribution.
+
+---
+
+If you want, I can now: build the `.exe` using `pyinstaller` from this environment, or compile the Inno Setup installer (you'll need Inno Setup installed). Which would you like me to do next?
+
