@@ -3,14 +3,15 @@
 
 [Setup]
 AppName=X2Express
-AppVersion=1.0.0
+AppId=D27E3D18-2A06-4629-9B4F-8C9D8A8BD964
+AppVersion=1.0.1
 DefaultDirName={autopf}\X2Express
 DefaultGroupName=X2Express
 DisableProgramGroupPage=no
 UninstallDisplayIcon={app}\X2Express.exe
 Compression=lzma
 SolidCompression=yes
-OutputBaseFilename=X2Express_Installer_v1.0.0
+OutputBaseFilename=X2Express_Installer_v1.0.1
 WizardStyle=modern
 PrivilegesRequired=admin
 
