@@ -62,6 +62,8 @@ BRANCH_MAP = {
     "0005785271": "TMB",
     "0002266232": "CSP",
     "0004374861": "RYY",
+    "0003372113": "MBK",
+    "0009245704": "AYY",
 }
 
 # Template columns and fixed values
